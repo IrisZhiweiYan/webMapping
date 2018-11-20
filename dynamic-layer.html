@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create web map from id</title>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/3.26/dijit/themes/claro/claro.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/3.26/esri/css/esri.css">
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <script src="https://js.arcgis.com/3.26/"></script>
+</head>
+
+<body class = "claro" >
+
+    <div id="mainWindow"
+        data-dojo-type="dijit.layout.BorderContainer"
+        data-dojo-props="design:'headline', gutters:false"
+        style="width:100%; height:100%;">
+
+        <!-- dojo layout: top -->
+        <div id="header" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'top'">
+            <h2>Hey! My Web Map</h2>
+        </div>
+
+        <!-- dogo layout: left pane -->
+        <div data-dojo-type="dijit.layout.ContentPane" id="leftPane" data-dojo-props="region:'left'">
+            <div data-dojo-type="dijit.layout.TabContainer">
+
+                <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="title:'Map Layers', selected:true">
+                    <div id="layers">
+                        <input type='checkbox' class='layer_list' id='0' onclick='changeLayerVisibility();'/>Census Block Points<br />
+				        <input type='checkbox' class='layer_list' id='1' onclick='changeLayerVisibility();'/>Census Block Polygons<br />
+                    </div>
+                </div>
+
+                <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="title:'Tools'" >
+                    content
+                </div>
+
+            </div>
+        </div>
+
+        <!--dojo layout: center, a container for the map-->
+        <div id="map" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'center'">
+            <label id="cursorLocation"> </label>
+        </div>
+
+        <div id="footer" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'bottom'">
+            <p>Iris Yan 2018-11-17</p>
+        </div>
+
+    </div>
+
+
+    <script>
+
+        var dynamicLayer
+
+        require([
+        "esri/map",
+        "esri/layers/ArcGISDynamicMapServiceLayer",
+        "dojo/parser",
+        "dijit/layout/BorderContainer", 
+        "dijit/layout/ContentPane",
+        "dijit/layout/TabContainer",
+        "dojo/domReady!"
+        ], function(
+        Map, ArcGISDynamicMapServiceLayer, parser
+        )   {
+            // parse the dijit layout dijits
+            parser.parse();
+
+            // Load the basemap
+            var map = new Map("map",{basemap: "gray",center: [-122.436, 37.764],zoom: 13});
+
+            // initialize dynamic map service layers
+            dynamicLayer = new ArcGISDynamicMapServiceLayer(
+                "https://sampleserver6.arcgisonline.com/arcgis/rest/services/Census/MapServer"
+            );
+
+            // don't want any layer to be visible in the begining  
+            dynamicLayer.setVisibleLayers([-1]); 
+            
+            // adding dynamic layer to map area
+            map.addLayer(dynamicLayer); 
+
+              
+
+        });
+
+        function changeLayerVisibility() {
+            var inputs = dojo.query(".layer_list"), input;
+
+            //initialize an array which will store the visible layer id's of dynamic map
+            var visible = [-1];                            
+
+            // loop though all the input's in class
+            for (var i=0, il=inputs.length; i<il; i++) {
+                if (inputs[i].checked) {          // check if current input is checked or unchecked
+                    visible.push(inputs[i].id);    // if checked then add the id of input to the visible layer
+                }
+            }
+
+            // finally assign the visible layers array to dynamicLayer visible layers
+            dynamicLayer.setVisibleLayers(visible);   
+
+        };
+
+    </script>
+</body>
+</html>

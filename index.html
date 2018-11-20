@@ -3,111 +3,374 @@
 <head>
     <title>Create web map from id</title>
 
-    <!-- change the version of API, from 3.X to 4.9 -->
-    <!-- ONLY AMD model. Legacy model is no longer supported -->
-    <link rel="stylesheet" href="https://js.arcgis.com/4.9/dijit/themes/claro/claro.css">
-    <link rel="stylesheet" href="https://js.arcgis.com/4.9/esri/css/main.css">
-    <script src="https://js.arcgis.com/4.9/"></script>
-    <style>
-        body, html {
-            width: 100%;
-            height: 95%;
-            margin: 0;
-            padding: 0;
-        }
-        #map {
-            height: 100%;
-            width: 100%;
-            margin: 0px;
-        }
-        #informationArea {
-            height: 10%;
-            position: absolute;
-            bottom: 0px;
-            left: 0px;
-            right: 0px;
-            background-color: grey;
-        }
-        #buttonContainer {
-            position: absolute;
-            top: 60px;
-            right: 10px
-        }
-    </style>
+    <link rel="stylesheet" href="https://js.arcgis.com/3.26/dijit/themes/claro/claro.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/3.26/esri/css/esri.css">
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Reference Jquery -->
+	<link rel="stylesheet" href="css/style.css"/>
+    <script src="js/jquery-1.11.3.min.js"></script>
+    <script src="js/jquery-ui.js"></script>
+    
+    <script src="https://js.arcgis.com/3.26/"></script>
 </head>
 
-<body onload="createMap()">
-    <!--A container for the map-->
-    <div id="map">
-    </div>
+<body class = "claro" >
 
-    <!--A container the information-->
-    <div id="informationArea">
-    </div>
+    <div id="mainWindow"
+        data-dojo-type="dijit.layout.BorderContainer"
+        data-dojo-props="design:'headline', gutters:false"
+        style="width:100%; height:100%;">
 
-    <!--A container the button-->
-    <div id="buttonContainer">
-        <button id="clickButton">Show the coordinates of my location</button>
+        <!-- dojo layout: top -->
+        <div id="header" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'top'">
+            <h2>Hey! My Web Map</h2>
+        </div>
+
+        <!-- dogo layout: left pane -->
+        <div data-dojo-type="dijit.layout.ContentPane" id="leftPane" data-dojo-props="region:'left'">
+            <div data-dojo-type="dijit.layout.TabContainer">
+
+                <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="title:'Map Layers', selected:true">
+                    <div id="layers">
+                        <input type='checkbox' class='layer_list' data-layer-id='0'>Census Block Points<br />
+				        <input type='checkbox' class='layer_list' data-layer-id='1'>Census Block Polygons<br />
+                    </div>
+                </div>
+
+                <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="title:'Tools'" >
+                    <fieldset>
+                        <legend>Buffer</legend>
+                        Find All:
+                        <select id="selectLayers">
+                            <option value="0">Layer 1</option>
+                            <option value="1">Layer 2</option>
+                        </select>&nbsp;&nbsp; With In </br>
+                        <input type="text" size="20" value="1000" id="distance">&nbsp;&nbsp;
+                        <select id="unit">
+                            <option value="UNIT_FOOT">Feet</option>
+                            <option value="UNIT_STATUTE_MILE">Miles</option>
+                        </select><br/>of Selected Feature</br>
+                        <button id="Buffer" >Go</button>
+                    </fieldset><br/><br/>
+
+                    <fieldset>
+                        <legend>Measure</legend>
+                        <div id="measureDiv"></div>
+                    </fieldset>
+                </div>
+
+            </div>
+        </div>
+
+        <!--dojo layout: center, a container for the map-->
+        <div id="map" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'center'">
+            <label id="cursorLocation"> </label>
+        </div>
+
+        <div id="draw">
+            <button id="Point" class="draw first" data-draw-type="Point" >Point</button>
+            <button id="Polyline" class="draw" data-draw-type="Polyline"  >Polyline</button>
+            <button id="Polygon" class="draw" data-draw-type="Polygon" >Polygon</button>
+            <button id="clear" class="draw last"  data-draw-type="Clear"  >Clear</button>
+       </div>
+
+        <div id="footer" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'bottom'">
+            <p>Iris Yan 2018-11-17</p>
+        </div>
+
     </div>
 
     <script>
-        require([
-        "esri/views/MapView",
-        "esri/WebMap",
-        "esri/widgets/Track",
-        "esri/widgets/Search"
-        ], function(
-         MapView, WebMap,Track, Search
-        )   {
-            //This creates the map, using the specified webmapID
-            var webmap = new WebMap({
-                portalItem: {
-                id: "687b83365dd34e48b759ce3121ff4497"
-                }
-            });
+    var map;
+    var dynamicLayer;
+    var dynamicLayerUrl = "https://sampleserver6.arcgisonline.com/arcgis/rest/services/Census/MapServer";
+    var drawTool;
+    var legend,scalebar;
+    var mapClickEvent;
+    var selectedFeature;
 
+    require(["dojo/_base/event","dojo/dom","dojo/dom-attr","dojo/on","esri/toolbars/draw","esri/map","esri/layers/ArcGISTiledMapServiceLayer",
+            "esri/layers/ArcGISDynamicMapServiceLayer","esri/geometry","dojo/parser",
+            "esri/geometry/webMercatorUtils","esri/symbols/SimpleMarkerSymbol", "esri/symbols/SimpleLineSymbol",
+            "esri/symbols/SimpleFillSymbol","esri/graphic", "dojo/_base/Color","esri/dijit/Legend","esri/dijit/Scalebar","dijit/popup","esri/tasks/IdentifyTask","esri/tasks/IdentifyParameters",
+            "esri/InfoTemplate","esri/dijit/Measurement","esri/tasks/GeometryService","esri/tasks/BufferParameters","esri/tasks/query", "esri/tasks/QueryTask","dojo/_base/connect","dojo/_base/event","dijit/layout/BorderContainer",
+            "dijit/layout/ContentPane","dijit/layout/TabContainer","dojo/domReady!","esri/IdentityManager"],
+            function(event,dom,domAttr,on,Draw,Map,Tiled,ArcGISDynamicMapServiceLayer,Geometry, parser, webMercatorUtils,SimpleMarkerSymbol,SimpleLineSymbol,SimpleFillSymbol,Graphic,Color
+                ,Legend,Scalebar,Popup,IdentifyTask,IdentifyParameters,InfoTemplate,Measurement,GeometryService, BufferParameters,Query, QueryTask,connect,event) {
+
+                parser.parse();
+
+                // Load the basemap
+                var map = new Map("map",{basemap: "gray",center: [-122.436, 37.764],zoom: 13});
+
+                // check the event , when map loads. Triggered when first layer on the map is loaded.
+                map.on("load", function (){
+                    // Hook up jQuery
+                    $(document).ready(initializeJquery);
+                });
+
+
+                // ADD MAP LAYERS
+                // initialize dynamic map service layers
+                dynamicLayer = new ArcGISDynamicMapServiceLayer(
+                    dynamicLayerUrl
+                );
+
+                // don't want any layer to be visible in the begining  
+                dynamicLayer.setVisibleLayers([-1]); 
             
-            //Set the WebMap instance to the map property in a MapView.
-            var view = new MapView({
-                map: webmap,
-                container: "map"
+                // adding dynamic layer to map area
+                map.addLayer(dynamicLayer); 
+
+                // ADD MAP ELEMENTS     
+                // initialize legend
+                // legend = new Legend({
+                //     map:map,
+                //     layerInfos:[{layer:dynamicLayer,title:"Dynamic Layer"}],
+                //     arrangement:Legend.ALIGN_LEFT,
+                //     respectCurrentMapScale:false
+                // },"legend");
+
+                // // start legend
+                // legend.startup();
+
+                // initialize scalebar
+                // scalebar = new Scalebar({
+                //     map: map,
+                //     scalebarUnit: "dual",
+                //     attachTo: "top-center"
+                // });
+
+                mapClickEvent = map.on("click",doIdentify);   // start identify when map click
+                //map.on("mouse-move",mouseMove);
+
+                // ADD TOOLS
+                // Tool 2: Measurement
+                // initialize and start measure dijit
+                var measurement = new Measurement({
+                    map: map
+                }, dojo.byId('measureDiv'));
+                measurement.startup();
+
+                // when area button click, disbale map identify button
+                measurement.on("tool-change",function(){
+                    console.log(this.getTool());
+                    if(typeof this.getTool() == "undefined"){
+                        mapClickEvent = map.on("click",doIdentify);   // start identify when map click
+                        this.clearResult();
+                    }else{
+                        mapClickEvent.remove();
+                        this.clearResult();
+                    }
+                });
+                // End of Measurement tool
+
+              
+                drawTool = new Draw(map);                   // initialize draw toolbar
+                drawTool.on("draw-end", addGraphicToMap);        // specify what happens or which function to execute when drawing ends
+
+                // Tool 1: Buffer
+                function doBuffer(){
+                    if(selectedFeature){
+                        var geometryToBuffer = selectedFeature.geometry;   // geometry to buffer is selected feature
+
+                        var gsvc = new GeometryService("http://tasks.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer");
+                        //setup the buffer parameters
+                        var params = new BufferParameters();
+                        params.distances = [ dom.byId("distance").value ];
+                        params.bufferSpatialReference = map.spatialReference;
+                        params.outSpatialReference = map.spatialReference;
+                        params.unit = GeometryService[dom.byId("unit").value];
+                        //params.unionResults = true;
+                        if (geometryToBuffer.type === "polygon") {
+                            //if geometry is a polygon then simplify polygon.  This will make the user drawn polygon topologically correct.
+                            gsvc.simplify([selectedFeature.geometry], function(geometries) {
+                                params.geometries = [geometryToBuffer];//geometries;
+                                gsvc.buffer(params, findByBuffer);
+                            });
+                        } else {
+                            params.geometries = [geometryToBuffer];
+                            gsvc.buffer(params, findByBuffer);
+                        }
+                    }else{
+                        alert("no feature selected to buffer")
+                    }
+                }
+
+                // findBuffer() used in doBuffer()
+                function findByBuffer(BufferGeometries){
+                    var symbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,
+                                    new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,new Color([255,0,0,0.65]), 2
+                                    ),new Color([255,0,0,0.35]));
+
+                    for(var i=0;i<BufferGeometries.length;i++){
+                        var graphic = new Graphic(BufferGeometries[i], symbol);
+                        map.graphics.add(graphic);
+                    }
+
+                    var queryTask = new QueryTask(dynamicLayerUrl + dom.byId("selectLayers").value);
+                    var query = new Query();
+                    query.returnGeometry = true;
+                    query.outFields = ["*"];
+                    query.geometry = BufferGeometries[0];
+                    queryTask.execute(query,showQueryResults);
+                }
+
+                function showQueryResults(fset){
+                    // define selection symbols for point line and polygons
+                    var symbolPoint = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE, 10,
+                                        new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,new Color([0,255,255]), 1),
+                                        new Color([0,255,255,0.25]));
+                    var symbolLine = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,new Color([0,255,255]), 3);
+
+                    var symbolPolygon = new SimpleFillSymbol(SimpleFillSymbol.STYLE_NULL,
+                                        new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,new Color([0,255,255]), 2),
+                                        new Color([255,255,0,0.25]));
+                  
+                    var infoTemplate = new InfoTemplate("Object", "${*}");
+
+                    // loop trhrough features and add to map
+                    var resultFeatures = fset.features;
+                    for (var i=0, il=resultFeatures.length; i<il; i++) {
+                        var graphic = resultFeatures[i];
+                        if(graphic.geometry.type == "point"){
+                            graphic.setSymbol(symbolPoint);
+                        }else if(graphic.geometry.type == "polyline"){
+                            graphic.setSymbol(symbolLine);
+                        }else{
+                            graphic.setSymbol(symbolPolygon);
+                        }
+
+                        graphic.setInfoTemplate(infoTemplate);
+                        map.graphics.add(graphic);
+                    }
+
+                }
+                // End of Buffer tool
+              
+                // Show the feature information when the feature on the map is clicked
+                // function to handle identify task after map click
+                function doIdentify(evt) {
+                  
+                    identifyTask = new IdentifyTask(dynamicLayerUrl);
+                    identifyParams = new IdentifyParameters();
+                    identifyParams.tolerance = 3;
+                    identifyParams.returnGeometry = true;
+                    identifyParams.layerIds = dynamicLayer.visibleLayers;
+                    identifyParams.layerOption = IdentifyParameters.LAYER_OPTION_ALL;
+                    identifyParams.width  = map.width;
+                    identifyParams.height = map.height;
+                    identifyParams.geometry = evt.mapPoint;
+                    identifyParams.mapExtent = map.extent;
+
+                    var deferred = identifyTask.execute(identifyParams);
+
+                    deferred.addCallback(function(response) {
+                        // response is an array of identify result objects
+                        // Lets return an array of features.
+                        return dojo.map(response, function(result) {
+                            var feature = result.feature;
+                            var template = new InfoTemplate(result.layerName, "${*}");
+                            feature.setInfoTemplate(template);
+                            selectedFeature = feature;
+                            return feature;
+                        });
+                    });
+
+                    map.infoWindow.setFeatures([ deferred ]);
+                    map.infoWindow.show(evt.mapPoint);
+                }
+
+
+               // Method when draw ends, create graphic and add to map
+               function addGraphicToMap(evt){
+
+                    // check the geomtry type and create symbol accordingly
+                    if ( evt.geometry.type === "point") {
+                        var symbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE, 20,
+                                          new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,new Color([0,255,0]), 1),
+                                          new Color([255,0,0,0.25]));
+
+                    } else if (evt.geometry.type === "polyline") {
+                      var symbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_DASH,new Color([255,0,0]), 3);
+                    }
+                    else {
+                        var symbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,
+                                        new SimpleLineSymbol(SimpleLineSymbol.STYLE_DASHDOT,new Color([255,0,0]), 2),
+                                        new Color([255,255,0,0.25]));
+                    }
+
+                    // create a graphic with geometry and symbol;
+                    var mapGraphic = new Graphic(evt.geometry, symbol);
+
+                    // add graphic to map
+                    map.graphics.add(mapGraphic);
+                  
+                    selectedFeature = mapGraphic;  // make the selected Feature to the drawn Geometry;
+                  
+                    drawTool.deactivate();     // deactivate the draw tool
+                    map.enableMapNavigation(); // enable navigation again
+                     mapClickEvent = map.on("click",doIdentify);  // enable back map click identify event
+                }
+
+                // call function when mouse is moving to update current coordinates display
+                // function mouseMove(evt){
+                //     var value = webMercatorUtils.xyToLngLat(evt.mapPoint.x, evt.mapPoint.y, true);
+                //     $("#cursorLocation").html("X : " + value[0].toFixed(4) + "  Y : " + value[1].toFixed(4));
+                // }
+
+                // Initialize Jquery Methods and Events
+                function initializeJquery(){
+                    // Check if any check of Class layer_list is clicked. 
+                    $(".layer_list").on("click",function(e){
+                        var currentVisibleLayers = dynamicLayer.visibleLayers;      // get the current visible layers of dynamic service into an javascript array
+                        var layerId = $(this).data("layer-id");                     // get the layer-id attribute of checkbox
+                      
+                        if($(this).prop("checked")){                                // check if checkbox is checked or unched
+                            currentVisibleLayers.push(layerId);                     // add the layer-id value to current visible layer array
+                        }else{
+                            var index = currentVisibleLayers.indexOf(layerId);      // get the index of layer-id in the current visible layer array 
+                            currentVisibleLayers.splice(index,1);                   // remove the layer-id from current visible layer array
+                        }
+                        dynamicLayer.setVisibleLayers(currentVisibleLayers);        // set the dynamic service visible layers to the new updated array.
+                        //legend.refresh();                                           // Refresh the legend widget everty time layer gets toggeled
+                    });
+                  
+                    $(".draw").on("click",function(){
+                        drawTool = new Draw(map);                   // initialize draw toolbar
+                        drawTool.on("draw-end", addGraphicToMap);        // specify what happens when draw ends
+                        map.disableMapNavigation();                 // disable navigation control, so that draw movement doesn't conflict with map navigation
+                        var drawType = $(this).data("draw-type");   // get the draw type , the html 5 attribute that defines draw type for button
+                      
+                        // check the draw type and activet corresponding draw tool.
+                        if(drawType == "Point"){
+                            drawTool.activate(Draw.POINT);
+                            mapClickEvent.remove();     // disable map click identify event
+                        }else if(drawType == "Polyline"){
+                            drawTool.activate(Draw.POLYLINE);
+                            mapClickEvent.remove();     // disable map click identify event
+                        }else if(drawType == "Polygon"){
+                            drawTool.activate(Draw.POLYGON);
+                            mapClickEvent.remove();     // disable map click identify event
+                        }else {
+                            map.graphics.clear();
+                            mapClickEvent = map.on("click",doIdentify);      // enable back map click identify event
+                            selectedFeature = null;  // clear the selectedFeature variable, means no selection
+                        }
+                      
+                    });
+                  
+                    // Buffer Button Click
+                    $("#Buffer").on("click",function(){
+                        doBuffer();
+                    });
+                }
+              
+
             });
-
-            // Create an instance of the Track widget
-            // and add it to the view's UI
-            var track = new Track({
-                view: view
-            });
-            view.ui.add(track, "top-left");
-
-
-            // Create the Search widget
-            var searchWidget = new Search({
-                view: view
-            });
-            // Add the search widget to the top right corner of the view
-            view.ui.add(searchWidget, {
-                position: "top-right"
-            });
-
-        });
-
-        //Adds a functionto the button
-        document.getElementById("clickButton").onclick = getLocation;
-
-        //The funtions for the button
-        //HTML5 Geolocation API
-        function getLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(showPosition);
-            } else { 
-                document.getElementById("informationArea").innerHTML = "Geolocation is not supported by this browser.";
-            }
-        }
-
-        function showPosition(position) {
-            document.getElementById("informationArea").innerHTML = "Latitude: " + position.coords.latitude + ", Longitude: " + position.coords.longitude; 
-        }
+         
     </script>
 </body>
 </html>

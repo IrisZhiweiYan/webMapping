@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create web map from id</title>
+
+    <!-- change the version of API, from 3.X to 4.9 -->
+    <!-- ONLY AMD model. Legacy model is no longer supported -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.9/dijit/themes/claro/claro.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/4.9/esri/css/main.css">
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <script src="https://js.arcgis.com/4.9/"></script>
+</head>
+
+<body class = "claro">
+
+    <div id="mainWindow"
+        data-dojo-type="dijit.layout.BorderContainer"
+        data-dojo-props="design:'headline', gutters:false"
+        style="width:100%; height:100%;">
+
+        <div id="header" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'top'">
+            Web Develoment
+            <div id="subheader">ESRI ArcGIS for JavaScript API</div>
+        </div>
+        <div data-dojo-type="dijit.layout.ContentPane" id="leftPane" data-dojo-props="region:'left'">
+            <div data-dojo-type="dijit.layout.TabContainer">
+
+                <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="title:'Map Layers', selected:true">
+                    <div id="layers">
+                        <input type='checkbox' class='sample_list' id='0' onclick='changeLayerVisibility();'/>Census Points<br />
+				        <input type='checkbox' class='sample_list' id='1' onclick='changeLayerVisibility();'/>Census Polygons<br />
+                    </div>
+                </div>
+
+                <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="title:'Tab 2'" >
+                    Content for the second tab
+                </div>
+
+            </div>
+        </div>
+
+        <!--A container for the map-->
+        <div id="map" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'center'">
+            <label id="cursorLocation"> </label>
+        </div>
+
+        <div id="footer" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'bottom'">
+            Vikrant Krishna <a href="http://www.wsbeng.com" >(WSB & Associates) </a>
+        </div>
+
+    </div>
+
+
+    <script>
+        require([
+        "esri/views/MapView",
+        "esri/Map",
+        "esri/widgets/Track",
+        "esri/widgets/Search",
+        "esri/layers/MapImageLayer",
+        "dojo/parser",
+        "dijit/layout/BorderContainer", 
+        "dijit/layout/ContentPane",
+        "dijit/layout/TabContainer",
+        "dojo/domReady!"
+        ], function(
+         MapView, Map,Track, Search, MapImageLayer, parser
+        )   {
+            var layer = new MapImageLayer({
+                url: "https://sampleserver6.arcgisonline.com/arcgis/rest/services/Census/MapServer",
+                sublayers: [{
+                    id: 0,
+                    visible: false,
+                }, {
+                    id: 1,
+                    visible: true,
+                }]
+            });
+
+            //Load the basemap
+            var map = new Map({
+                basemap: "gray",
+                layers: [layer]
+            });
+
+            
+            //Set the map instance to the map property in a MapView.
+            var view = new MapView({
+                map: map,
+                container: "map",
+                zoom: 13,
+                center: [-122.436, 37.764]
+            });
+
+
+            // Create an instance of the Track widget
+            // and add it to the view's UI
+            var track = new Track({
+                view: view
+            });
+            view.ui.add(track, "top-left");
+
+
+            // Create the Search widget
+            var searchWidget = new Search({
+                view: view
+            });
+            // Add the search widget to the top right corner of the view
+            view.ui.add(searchWidget, {
+                position: "top-right"
+            });
+
+        });
+
+        //Adds a functionto the button
+        //document.getElementById("clickButton").onclick = getLocation;
+
+        //The funtions for the button
+        //HTML5 Geolocation API
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition);
+            } else { 
+                document.getElementById("informationArea").innerHTML = "Geolocation is not supported by this browser.";
+            }
+        }
+
+        function showPosition(position) {
+            document.getElementById("informationArea").innerHTML = "Latitude: " + position.coords.latitude + ", Longitude: " + position.coords.longitude; 
+        }
+    </script>
+</body>
+</html>
